@@ -1,8 +1,13 @@
+/* eslint-disable jsx-a11y/control-has-associated-label */
 import React, { useEffect, useState, useMemo } from 'react';
 import { UserWarning } from './UserWarning';
 import { USER_ID, getTodos } from './api/todos';
 import { Todo } from './types/Todo';
 import { FilterStatus } from './types/FilterStatus';
+import { getVisibleTodos, getActiveTodos } from './utils/todoHelpers';
+import { TodoItem } from './components/TodoItem';
+
+const filterLinks = Object.values(FilterStatus);
 
 export const App: React.FC = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -17,25 +22,18 @@ export const App: React.FC = () => {
   useEffect(() => {
     getTodos()
       .then(setTodos)
-      .catch(() => {
-        showError('Unable to load todos');
-      });
+      .catch(() => showError('Unable to load todos'));
   }, []);
 
-  const visibleTodos = useMemo(() => {
-    return todos.filter(todo => {
-      switch (filter) {
-        case FilterStatus.Active:
-          return !todo.completed;
-        case FilterStatus.Completed:
-          return todo.completed;
-        default:
-          return true;
-      }
-    });
-  }, [todos, filter]);
+  const visibleTodos = useMemo(
+    () => getVisibleTodos(todos, filter),
+    [todos, filter],
+  );
 
-  const activeCount = todos.filter(t => !t.completed).length;
+  const activeTodosCount = getActiveTodos(todos).length;
+  const isAllCompleted =
+    todos.length > 0 && todos.every(todo => todo.completed);
+  const hasCompleted = todos.some(todo => todo.completed);
 
   if (!USER_ID) {
     return <UserWarning />;
@@ -50,7 +48,7 @@ export const App: React.FC = () => {
           {todos.length > 0 && (
             <button
               type="button"
-              className={`todoapp__toggle-all ${todos.every(t => t.completed) ? 'active' : ''}`}
+              className={`todoapp__toggle-all ${isAllCompleted ? 'active' : ''}`}
               data-cy="ToggleAllButton"
             />
           )}
@@ -68,43 +66,7 @@ export const App: React.FC = () => {
         {todos.length > 0 && (
           <section className="todoapp__main" data-cy="TodoList">
             {visibleTodos.map(todo => (
-              <div
-                key={todo.id}
-                data-cy="Todo"
-                className={`todo ${todo.completed ? 'completed' : ''}`}
-              >
-                <label className="todo__status-label">
-                  <input
-                    id={`todo-status-${todo.id}`}
-                    data-cy="TodoStatus"
-                    type="checkbox"
-                    className="todo__status"
-                    checked={todo.completed}
-                    readOnly
-                  />
-                  <span className="is-sr-only" style={{ display: 'none' }}>
-                    Toggle Todo Status
-                  </span>
-                </label>
-
-                <span data-cy="TodoTitle" className="todo__title">
-                  {todo.title}
-                </span>
-
-                <button
-                  type="button"
-                  className="todo__remove"
-                  data-cy="TodoDelete"
-                  aria-label="Delete todo"
-                >
-                  x
-                </button>
-
-                <div data-cy="TodoLoader" className="modal overlay">
-                  <div className="modal-background has-background-white-ter" />
-                  <div className="loader" />
-                </div>
-              </div>
+              <TodoItem key={todo.id} todo={todo} />
             ))}
           </section>
         )}
@@ -112,11 +74,11 @@ export const App: React.FC = () => {
         {todos.length > 0 && (
           <footer className="todoapp__footer" data-cy="Footer">
             <span className="todo-count" data-cy="TodosCounter">
-              {activeCount} items left
+              {activeTodosCount} items left
             </span>
 
             <nav className="filter" data-cy="Filter">
-              {Object.values(FilterStatus).map(status => (
+              {filterLinks.map(status => (
                 <a
                   key={status}
                   href={`#/${status === FilterStatus.All ? '' : status}`}
@@ -133,7 +95,7 @@ export const App: React.FC = () => {
               type="button"
               className="todoapp__clear-completed"
               data-cy="ClearCompletedButton"
-              disabled={todos.every(t => !t.completed)}
+              disabled={!hasCompleted}
             >
               Clear completed
             </button>
